@@ -55,10 +55,8 @@ jobs:
             cp assets/icons/mipmap-${d}.png \
                android/app/src/main/res/mipmap-${d}/ic_launcher_round.png
           done
-          find android/app/src/main/res \
-               -name "ic_launcher.xml" -delete
-          find android/app/src/main/res \
-               -name "ic_launcher_round.xml" -delete
+          find android/app/src/main/res -name "ic_launcher.xml" -delete
+          find android/app/src/main/res -name "ic_launcher_round.xml" -delete
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
@@ -68,13 +66,14 @@ jobs:
           cd android
           ./gradlew assembleDebug
 
-      - name: Rename APK
-        run: |
-          VER=${{ github.event.release.tag_name }}
-          cp android/app/build/outputs/apk/debug/app-debug.apk \
-             OmniChat-${VER}.apk
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniChat-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Attach APK to Release
+      - name: Attach APK to Release (si Release)
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: OmniChat-${{ github.event.release.tag_name }}.apk
+          files: android/app/build/outputs/apk/debug/app-debug.apk
