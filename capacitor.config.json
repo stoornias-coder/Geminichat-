@@ -10,6 +10,13 @@
       "resize": "body",
       "style": "dark",
       "resizeOnFullScreen": true
+    },
+    "StatusBar": {
+      "style": "DEFAULT",
+      "backgroundColor": "#0f0f0f",
+      "overlaysWebView": false,
+      "androidNavigationBarColor": "#0f0f0f",
+      "androidNavigationBarLight": false
     }
   },
   "android": {
