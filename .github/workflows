@@ -5,6 +5,9 @@ on:
     types: [published]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: write
 
@@ -66,14 +69,9 @@ jobs:
           cd android
           ./gradlew assembleDebug
 
-      - name: Upload APK as artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: OmniChat-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Attach APK to Release (si Release)
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
