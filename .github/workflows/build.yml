@@ -58,8 +58,34 @@ jobs:
             cp assets/icons/mipmap-${d}.png \
                android/app/src/main/res/mipmap-${d}/ic_launcher_round.png
           done
-          find android/app/src/main/res -name "ic_launcher.xml" -delete
-          find android/app/src/main/res -name "ic_launcher_round.xml" -delete
+
+      - name: Patch AndroidManifest — presse-papier
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          if ! grep -q "READ_CLIPBOARD" "$MANIFEST"; then
+            sed -i 's|<uses-permission android:name="android.permission.INTERNET"/>|<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.READ_CLIPBOARD"/>|' "$MANIFEST"
+          fi
+
+      - name: Patch MainActivity — WebView presse-papier
+        run: |
+          MAIN=android/app/src/main/java/com/omnichat/app/MainActivity.java
+          if [ -f "$MAIN" ]; then
+            if ! grep -q "setAllowContentAccess" "$MAIN"; then
+              sed -i 's|super.onCreate(savedInstanceState);|super.onCreate(savedInstanceState);\n        if (this.bridge != null \&\& this.bridge.getWebView() != null) {\n            this.bridge.getWebView().getSettings().setAllowContentAccess(true);\n            this.bridge.getWebView().getSettings().setAllowFileAccess(true);\n        }|' "$MAIN"
+            fi
+          fi
+
+      - name: Patch styles.xml — StatusBar icônes visibles
+        run: |
+          STYLES=android/app/src/main/res/values/styles.xml
+          if [ -f "$STYLES" ]; then
+            if ! grep -q "android:statusBarColor" "$STYLES"; then
+              sed -i 's|</style>|    <item name="android:statusBarColor">@android:color/transparent</item>\n    </style>|' "$STYLES"
+            fi
+            if ! grep -q "android:windowLightStatusBar" "$STYLES"; then
+              sed -i 's|</style>|    <item name="android:windowLightStatusBar">true</item>\n    </style>|' "$STYLES"
+            fi
+          fi
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
