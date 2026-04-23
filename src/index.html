@@ -422,7 +422,10 @@ body.rp-mode #input-bar { border-color:rgba(232,160,32,.4); }
 body.rp-mode #input-bar:focus-within { border-color:var(--rp); }
 body.rp-mode #send-btn { background:var(--rp); }
 body.rp-mode #send-btn:hover { background:var(--rp2); }
+.stream-cursor { display:inline-block; animation:blink .7s step-end infinite; opacity:.8; color:var(--accent); font-size:.85em; }
+@keyframes blink { 0%,100%{opacity:.8} 50%{opacity:0} }
 .bot-opening-msg { font-size:.72rem; color:var(--rp); background:var(--rp-glow); border:1px solid rgba(232,160,32,.2); border-radius:8px; padding:.35rem .75rem; margin-bottom:.5rem; display:inline-block; }
+
 
 @media (max-width:640px) {
   #sidebar { position:absolute; top:0; left:0; bottom:0; z-index:300; transform:translateX(-100%); }
@@ -558,7 +561,7 @@ body.rp-mode #send-btn:hover { background:var(--rp2); }
     <div id="messages" style="display:none;"></div>
   </div>
 
-  <button id="scroll-down" onclick="scrollBottom()">
+  <button id="scroll-down" onclick="scrollBottomKeepFocus(event)">
     <span class="ic s14"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span>
   </button>
 
@@ -1616,6 +1619,8 @@ async function sendMessage(){
   busy=true;document.getElementById("send-btn").disabled=true;
   input.value="";autoResize(input);
   localStorage.removeItem(DRAFT_KEY);
+  // Ferme le clavier après envoi
+  input.blur();
   const userContent=text||(attachedFile?`[Fichier joint : ${attachedFile.name}]`:"");
   const currentAttach=attachedFile;clearAttachment();
   const histEntry={role:"user",content:userContent};
@@ -1624,17 +1629,16 @@ async function sendMessage(){
   appendMessage("user",userContent,true,currentAttach,chatHistory.length-1);
   showTyping();
   try{
-    const reply=await callGroq(userContent,currentAttach);
-    removeTyping();chatHistory.push({role:"assistant",content:reply});
-    appendMessage("bot",reply,true,null,chatHistory.length-1);
+    const reply=await callGroqStream(userContent,currentAttach);
     if(ttsEnabled)speakText(reply);
     saveCurrentSession();
   }catch(e){
     removeTyping();const errMsg=`Erreur : ${e.message}`;
     chatHistory.push({role:"assistant",content:errMsg});appendMessage("bot",errMsg,true,null,chatHistory.length-1);
   }
-  busy=false;document.getElementById("send-btn").disabled=false;input.focus();
+  busy=false;document.getElementById("send-btn").disabled=false;
 }
+
 
 // ===================== WEB SEARCH =====================
 async function searchWeb(query){
@@ -1724,7 +1728,116 @@ async function callGroq(userMessage,attachment){
   return text||"Je n'ai pas pu générer de réponse.";
 }
 
-// ===================== IMAGE GEN =====================
+// ===================== STREAMING =====================
+async function callGroqStream(userMessage,attachment){
+  const useRP=modes.rp;
+  const useWebForced=(webMode==="web")&&!useRP;
+  if((webMode==="web"||webMode==="auto")&&(!tavilyKey||tavilyKey.length<8)){
+    if(webMode==="web") showToast("⚠️ Mode Web actif mais clé Tavily manquante — ouvre Paramètres pour l'ajouter",5000);
+  }
+  const useAutoSearch=(webMode==="auto")&&!useRP&&shouldAutoSearch(userMessage);
+  const useWeb=useWebForced||useAutoSearch;
+
+  let webContext=null,isAutoSearch=false;
+  if(useWeb){
+    try{
+      if(useAutoSearch){showToast("Recherche auto...",4000);isAutoSearch=true;}
+      else showToast("Recherche en cours...",8000);
+      webContext=await searchWeb(userMessage);
+    }catch(e){webContext={text:`Erreur recherche : ${e.message}`,sources:[]};}
+  }
+
+  const systemText=buildSystemPrompt(useRP,webContext,isAutoSearch,webMode,useWeb);
+  let model=currentModel;
+  if(attachment&&attachment.type==="image") model="meta-llama/llama-4-scout-17b-16e-instruct";
+
+  const messages=[{role:"system",content:systemText}];
+  const histSlice=chatHistory.slice(0,-1);
+  for(const msg of histSlice){
+    if(msg.__opening__)continue;
+    if(msg.role==="user"&&msg.__attach__){
+      if(msg.__attach__.type==="image") messages.push({role:"user",content:[{type:"image_url",image_url:{url:`data:${msg.__attach__.mimeType};base64,${msg.__attach__.data}`}},{type:"text",text:msg.content||"Décris cette image."}]});
+      else if(msg.__attach__.type==="doc") messages.push({role:"user",content:`${msg.content}\n\n--- Contenu du fichier "${msg.__attach__.name}" ---\n${msg.__attach__.data}`});
+    }else{
+      messages.push({role:msg.role==="assistant"?"assistant":"user",content:msg.content});
+    }
+  }
+  if(attachment&&attachment.type==="image"){
+    messages.push({role:"user",content:[{type:"image_url",image_url:{url:`data:${attachment.mimeType};base64,${attachment.data}`}},{type:"text",text:userMessage||"Décris cette image."}]});
+    model="meta-llama/llama-4-scout-17b-16e-instruct";
+  }else if(attachment&&attachment.type==="doc"){
+    messages.push({role:"user",content:`${userMessage}\n\n--- Contenu du fichier "${attachment.name}" ---\n${attachment.data}`});
+  }else{
+    const recentImageMsg=histSlice.filter(m=>m.__attach__&&m.__attach__.type==="image").slice(-1)[0];
+    if(recentImageMsg&&model!=="meta-llama/llama-4-scout-17b-16e-instruct") model="meta-llama/llama-4-scout-17b-16e-instruct";
+    messages.push({role:"user",content:userMessage});
+  }
+
+  const res=await fetch("https://api.groq.com/openai/v1/chat/completions",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":`Bearer ${groqKey}`},
+    body:JSON.stringify({model,messages,max_tokens:4000,temperature:useRP?0.9:0.6,stream:true})
+  });
+  if(!res.ok){
+    const err=await res.json().catch(()=>({}));
+    const msg=err?.error?.message||`Erreur ${res.status}`;
+    if(res.status===401)throw new Error("Clé API invalide.");
+    if(res.status===429)throw new Error("Limite atteinte. Bascule sur un autre modèle.");
+    throw new Error(msg);
+  }
+
+  // Créer la bulle de réponse en streaming
+  removeTyping();
+  const hIdx=chatHistory.length;
+  chatHistory.push({role:"assistant",content:""});
+  const row=appendMessage("bot","",true,null,hIdx);
+  const botTextEl=row.querySelector(".bot-text");
+  const cw=document.getElementById("chat-wrap");
+
+  let fullText="";
+  const reader=res.body.getReader();
+  const decoder=new TextDecoder();
+  let buffer="";
+
+  while(true){
+    const {done,value}=await reader.read();
+    if(done) break;
+    buffer+=decoder.decode(value,{stream:true});
+    const lines=buffer.split("\n");
+    buffer=lines.pop()||"";
+    for(const line of lines){
+      if(!line.startsWith("data: ")) continue;
+      const data=line.slice(6).trim();
+      if(data==="[DONE]") break;
+      try{
+        const parsed=JSON.parse(data);
+        const delta=parsed.choices?.[0]?.delta?.content||"";
+        if(delta){
+          fullText+=delta;
+          // Update bot text live (simple render, no heavy parsing mid-stream)
+          if(botTextEl) botTextEl.innerHTML=markedInline(fullText)+"<span class='stream-cursor'>▍</span>";
+          // Auto-scroll only if user is near bottom
+          if(isUserNearBottom()) cw.scrollTo({top:cw.scrollHeight,behavior:"instant"});
+        }
+      }catch{}
+    }
+  }
+
+  // Final render with full markdown
+  if(botTextEl) botTextEl.innerHTML="";
+  const finalText=fullText||(isAutoSearch?`<!-- AUTO_WEB -->`:"")||"Je n'ai pas pu générer de réponse.";
+  let finalFull=finalText;
+  if(isAutoSearch&&!finalText.startsWith("<!-- AUTO_WEB -->")) finalFull=`<!-- AUTO_WEB -->${finalText}`;
+  if(useWeb&&webContext?.sources?.length) finalFull+=`\n\n<!-- SOURCES:${JSON.stringify(webContext.sources)} -->`;
+
+  chatHistory[hIdx].content=finalFull;
+  // Re-render final message with full markdown + actions
+  row.remove();
+  appendMessage("bot",finalFull,false,null,hIdx);
+  cw.scrollTo({top:cw.scrollHeight,behavior:"smooth"});
+  return finalFull;
+}
+
 async function generateImage(prompt){
   busy=true;document.getElementById("send-btn").disabled=true;showTyping();
   const url=`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=768&seed=${Math.floor(Math.random()*99999)}&nologo=true&model=flux`;
@@ -2017,7 +2130,7 @@ function buildSystemPrompt(isRP, webContext, isAutoSearch=false, currentWebMode=
     webCapabilityNote="\nTu n'as PAS accès à Internet. Tu ne peux pas faire de recherches web. Si l'utilisateur demande des infos récentes ou en ligne, dis-lui d'activer le mode Web (bouton en haut à droite). Ne prétends jamais avoir accès au web.";
   }
 
-  return `Tu es OmniChat, un assistant IA polyvalent. Date : ${dateStr}.${webSection}${webCapabilityNote}\n\nTu réponds en français par défaut. Direct, utile, précis. Sois honnête sur tes limites.`;
+  return `Tu es OmniChat, un assistant IA polyvalent créé par Stornias. Date : ${dateStr}.${webSection}${webCapabilityNote}\n\nSi quelqu'un te demande qui t'a créé, réponds que c'est Stornias. Tu réponds en français par défaut. Direct, utile, précis. Sois honnête sur tes limites.`;
 }
 
 // ===================== HELPERS =====================
@@ -2097,6 +2210,8 @@ function autoResize(el){
 function onKey(e){if(e.key==="Enter"&&e.shiftKey){e.preventDefault();sendMessage();}}
 
 function scrollBottom(){const cw=document.getElementById("chat-wrap");cw.scrollTo({top:cw.scrollHeight,behavior:"smooth"});}
+function scrollBottomKeepFocus(e){if(e){e.preventDefault();e.stopPropagation();}const cw=document.getElementById("chat-wrap");cw.scrollTo({top:cw.scrollHeight,behavior:"smooth"});}
+function isUserNearBottom(){const cw=document.getElementById("chat-wrap");return cw.scrollHeight-cw.scrollTop-cw.clientHeight<80;}
 function fillMsg(text){const input=document.getElementById("msg-input");input.value=text;autoResize(input);input.focus();}
 function startRP(){if(!modes.rp)toggleMode('rp');fillMsg("Lance un scénario de roleplay. Tu choisis le genre et le contexte.");}
 
