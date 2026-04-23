@@ -42,7 +42,7 @@ jobs:
       - name: Prepare www folder
         run: |
           mkdir -p www
-          cp index.html www/index.html
+          cp src/index.html www/index.html
 
       - name: Add Android platform
         run: |
