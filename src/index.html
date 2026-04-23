@@ -176,7 +176,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
 #chat-wrap::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
 
 /* WELCOME */
-#welcome { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:2rem; text-align:center; }
+#welcome { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:2rem; padding-bottom:calc(2rem + var(--input-zone-h, 72px)); text-align:center; }
 .welcome-title { font-family:'DM Serif Display',serif; font-size:1.8rem; color:var(--text); margin-bottom:.5rem; }
 .welcome-sub { font-size:.82rem; color:var(--text-dim); max-width:320px; line-height:1.6; margin-bottom:1.8rem; }
 .suggestions { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; max-width:480px; width:100%; }
@@ -281,10 +281,10 @@ body.light .bot-content tr:nth-child(even) td { background:rgba(0,0,0,.03); }
 .think-body.open { display:block; }
 
 /* INPUT */
-#input-zone { flex-shrink:0; padding:.6rem 1.2rem .85rem; padding-bottom:calc(.85rem + env(safe-area-inset-bottom)); background:var(--bg); }
+#input-zone { flex-shrink:0; padding:.35rem 1.2rem .85rem; padding-bottom:calc(.85rem + env(safe-area-inset-bottom)); background:var(--bg); }
 
 #toast {
-  position:relative; max-width:760px; margin:0 auto .4rem;
+  position:relative; max-width:760px; margin:0 auto .2rem;
   background:var(--bg3); border:1px solid var(--border2);
   border-radius:20px; padding:.38rem 1.1rem;
   font-size:.72rem; color:var(--text-mid);
@@ -592,7 +592,7 @@ body.rp-mode #send-btn:hover { background:var(--rp2); }
           </button>
         </div>
       </div>
-      <textarea id="msg-input" placeholder="Message… (Shift+Entrée pour envoyer)" rows="1" onkeydown="onKey(event)" oninput="autoResize(this);saveDraft()" autocomplete="on" autocorrect="on" autocapitalize="sentences" spellcheck="true"></textarea>
+      <textarea id="msg-input" placeholder="Message… (Shift+Entrée pour envoyer)" rows="1" onkeydown="onKey(event)" oninput="autoResize(this);saveDraft()" autocomplete="on" autocorrect="on" autocapitalize="sentences" spellcheck="true" inputmode="text" enterkeyhint="send" x-webkit-speech></textarea>
       <button class="icon-btn" id="mic-btn" onclick="toggleMic()" title="Parler">
         <span class="ic s18"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></span>
       </button>
@@ -1024,6 +1024,17 @@ function applyTheme(){
   // Update theme-color meta for browser chrome matching
   const metaTheme = document.querySelector('meta[name="theme-color"]');
   if (metaTheme) metaTheme.content = isDark ? '#0f0f0f' : '#ffffff';
+  // Capacitor StatusBar : LIGHT style = icônes SOMBRES (pour fond blanc), DARK = icônes claires (fond noir)
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar) {
+    const SB = window.Capacitor.Plugins.StatusBar;
+    if (isDark) {
+      SB.setStyle({ style: 'DARK' });
+      SB.setBackgroundColor({ color: '#0f0f0f' });
+    } else {
+      SB.setStyle({ style: 'LIGHT' });
+      SB.setBackgroundColor({ color: '#ffffff' });
+    }
+  }
   // Adaptive logo: multiply blend removes white bg in light mode, normal in dark
   const sbImg = document.getElementById('sb-logo-img');
   const introImg = document.getElementById('intro-logo-img');
