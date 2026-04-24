@@ -566,7 +566,7 @@ body.rp-mode #send-btn:hover { background:var(--rp2); }
     <div id="messages" style="display:none;"></div>
   </div>
 
-  <button id="scroll-down" onclick="scrollBottomKeepFocus(event)">
+  <button id="scroll-down" onmousedown="event.preventDefault()" onclick="scrollBottomKeepFocus(event)">
     <span class="ic s14"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span>
   </button>
 
@@ -2291,8 +2291,11 @@ if(window.visualViewport){
       main.style.height=vh+'px';
     }
     updateScrollDownPosition();
+    // Ne scroller vers le bas QUE si des messages existent et qu'on était déjà en bas
     const cw=document.getElementById('chat-wrap');
-    if(cw&&isUserNearBottom())cw.scrollTo({top:cw.scrollHeight,behavior:'smooth'});
+    const msgs=document.getElementById('messages');
+    const hasMessages=msgs&&msgs.style.display!=='none'&&msgs.children.length>0;
+    if(cw&&hasMessages&&isUserNearBottom())cw.scrollTo({top:cw.scrollHeight,behavior:'smooth'});
   });
 }
 
@@ -2300,3 +2303,4 @@ if(!groqKey||groqKey.length<8)setTimeout(()=>showToast("Entre ta clé Groq pour 
 </script>
 </body>
 </html>
+
