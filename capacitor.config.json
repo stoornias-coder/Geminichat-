@@ -2,14 +2,21 @@
   "appId": "com.omnichat.app",
   "appName": "OmniChat",
   "webDir": "www",
-  "server": {
-    "androidScheme": "https"
+  "android": {
+    "allowMixedContent": true,
+    "webContentsDebuggingEnabled": false
   },
   "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#ffffff",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    },
     "Keyboard": {
       "resize": "body",
-      "style": "dark",
-      "resizeOnFullScreen": true
+      "resizeOnFullScreen": true,
+      "style": "dark"
     },
     "StatusBar": {
       "style": "DEFAULT",
@@ -18,10 +25,5 @@
       "androidNavigationBarColor": "#0f0f0f",
       "androidNavigationBarLight": false
     }
-  },
-  "android": {
-    "allowMixedContent": true,
-    "captureInput": true,
-    "webContentsDebuggingEnabled": false
   }
 }
