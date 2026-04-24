@@ -263,6 +263,7 @@ body.light .bot-content tr:nth-child(even) td { background:rgba(0,0,0,.03); }
 
 .bot-actions { display:flex; gap:.3rem; margin-top:.6rem; opacity:0; pointer-events:none; transition:opacity .18s; flex-wrap:wrap; }
 .bot-actions.visible { opacity:1; pointer-events:all; }
+.bot-actions.last-bot-actions { opacity:1; pointer-events:all; }
 @media (hover:hover) { .msg-row.bot:hover .bot-actions { opacity:1; pointer-events:all; } }
 .bot-act { background:none; border:1px solid var(--border2); color:var(--text-dim); cursor:pointer; padding:.28rem .55rem; border-radius:6px; display:flex; align-items:center; gap:.3rem; font-size:.7rem; font-family:'DM Sans',sans-serif; transition:all .15s; }
 .bot-act:hover, .bot-act:active { color:var(--text); background:var(--bg3); border-color:var(--accent); }
@@ -295,9 +296,9 @@ body.light .bot-content tr:nth-child(even) td { background:rgba(0,0,0,.03); }
   font-size:.72rem; color:var(--text-mid);
   pointer-events:none; opacity:0;
   transition:opacity .25s, max-height .25s;
-  max-height:0; overflow:hidden; text-align:center; white-space:nowrap;
+  max-height:0; overflow:hidden; text-align:center; white-space:normal;
 }
-#toast.show { opacity:1; max-height:40px; }
+#toast.show { opacity:1; max-height:80px; }
 
 #input-bar { display:flex; align-items:flex-end; gap:.5rem; background:var(--bg2); border:1px solid var(--border2); border-radius:16px; padding:.6rem .65rem .6rem .9rem; transition:border-color .2s; max-width:760px; margin:0 auto; }
 #input-bar:focus-within { border-color:var(--accent); }
@@ -344,6 +345,17 @@ body.light .bot-content tr:nth-child(even) td { background:rgba(0,0,0,.03); }
 }
 #scroll-down.show { display:flex; }
 #scroll-down:hover { border-color:var(--accent); color:var(--accent); }
+
+/* SCROLL UP */
+#scroll-up {
+  position:absolute; bottom:calc(var(--input-zone-h, 72px) + 42px); right:1.2rem;
+  width:30px; height:30px; border-radius:50%;
+  background:var(--bg3); border:1px solid var(--border2); color:var(--text-dim);
+  cursor:pointer; display:none; align-items:center; justify-content:center;
+  transition:all .2s; z-index:10;
+}
+#scroll-up.show { display:flex; }
+#scroll-up:hover { border-color:var(--accent); color:var(--accent); }
 
 /* MODAL BASE */
 .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:500; align-items:center; justify-content:center; padding:1rem; padding-bottom:max(1rem, env(safe-area-inset-bottom)); }
@@ -566,6 +578,9 @@ body.rp-mode #send-btn:hover { background:var(--rp2); }
     <div id="messages" style="display:none;"></div>
   </div>
 
+  <button id="scroll-up" onmousedown="event.preventDefault()" onclick="scrollTopKeepFocus(event);this.blur()">
+    <span class="ic s14"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg></span>
+  </button>
   <button id="scroll-down" onmousedown="event.preventDefault()" onclick="scrollBottomKeepFocus(event);this.blur()">
     <span class="ic s14"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span>
   </button>
@@ -1019,6 +1034,16 @@ function hideAllActions(){
   document.querySelectorAll(".user-actions.visible,.bot-actions.visible").forEach(el=>el.classList.remove("visible"));
   activeActionsRow=null;
 }
+function markLastBotActions(){
+  // Retire la classe de tous les messages bot
+  document.querySelectorAll(".bot-actions.last-bot-actions").forEach(el=>el.classList.remove("last-bot-actions"));
+  // Ajoute sur le dernier message bot uniquement
+  const botRows=document.querySelectorAll(".msg-row.bot:not(#typing-row)");
+  if(botRows.length>0){
+    const lastActions=botRows[botRows.length-1].querySelector(".bot-actions");
+    if(lastActions)lastActions.classList.add("last-bot-actions");
+  }
+}
 function toggleMsgActions(row){
   const isUser=row.classList.contains("user");
   const actionsEl=row.querySelector(isUser?".user-actions":".bot-actions");
@@ -1456,6 +1481,7 @@ function renderMessages(){
   chatHistory.forEach((m,i)=>{
     appendMessage(m.role,m.content,false,m.__attach__||null,i);
   });
+  markLastBotActions();
   scrollBottom();
 }
 
@@ -1516,6 +1542,7 @@ function appendMessage(role,content,animate=true,attachment=null,historyIndex){
   }
   container.appendChild(row);
   attachMsgClickHandler(row);
+  markLastBotActions();
   scrollBottom();
   return row;
 }
@@ -2265,6 +2292,7 @@ function onKey(e){if(e.key==="Enter"&&e.shiftKey){e.preventDefault();sendMessage
 
 function scrollBottom(){const cw=document.getElementById("chat-wrap");cw.scrollTo({top:cw.scrollHeight,behavior:"smooth"});}
 function scrollBottomKeepFocus(e){if(e){e.preventDefault();e.stopPropagation();}const cw=document.getElementById("chat-wrap");const inp=document.getElementById("msg-input");const hadFocus=document.activeElement===inp;cw.scrollTo({top:cw.scrollHeight,behavior:"smooth"});if(hadFocus)setTimeout(()=>inp.focus({preventScroll:true}),50);}
+function scrollTopKeepFocus(e){if(e){e.preventDefault();e.stopPropagation();}const cw=document.getElementById("chat-wrap");const inp=document.getElementById("msg-input");const hadFocus=document.activeElement===inp;cw.scrollTo({top:0,behavior:"smooth"});if(hadFocus)setTimeout(()=>inp.focus({preventScroll:true}),50);}
 function isUserNearBottom(){const cw=document.getElementById("chat-wrap");return cw.scrollHeight-cw.scrollTop-cw.clientHeight<80;}
 function fillMsg(text){const input=document.getElementById("msg-input");input.value=text;autoResize(input);input.focus();}
 function startRP(){if(!modes.rp)toggleMode('rp');fillMsg("Lance un scénario de roleplay. Tu choisis le genre et le contexte.");}
@@ -2280,6 +2308,7 @@ function showToast(msg,duration=2800){
 document.getElementById("chat-wrap").addEventListener("scroll",()=>{
   const cw=document.getElementById("chat-wrap");
   document.getElementById("scroll-down").classList.toggle("show",cw.scrollHeight-cw.scrollTop-cw.clientHeight>=100&&cw.scrollHeight>cw.clientHeight+200);
+  document.getElementById("scroll-up").classList.toggle("show",cw.scrollTop>100&&cw.scrollHeight>cw.clientHeight+200);
 });
 
 // FIX espace clavier : recalculer la hauteur quand le clavier Android s'ouvre/ferme
@@ -2306,3 +2335,4 @@ if(!groqKey||groqKey.length<8)setTimeout(()=>showToast("Entre ta clé Groq pour 
 </script>
 </body>
 </html>
+
