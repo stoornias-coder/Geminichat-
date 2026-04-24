@@ -806,7 +806,7 @@ let webMode = localStorage.getItem(WEB_MODE_KEY) || "off";
 if(webMode==="off" && _oldModes.web) webMode="web";
 if(webMode==="off" && _oldModes.auto) webMode="auto";
 
-let isDark=(localStorage.getItem(THEME_KEY)||"dark")==="dark";
+let isDark=(localStorage.getItem(THEME_KEY)||"light")==="dark";
 // Appliquer le thème immédiatement pour éviter le flash au démarrage
 if(!isDark)document.documentElement.classList.add('light-init');
 let attachedFile=null,mediaRecorder=null,audioChunks=[],isRecording=false;
@@ -2300,4 +2300,3 @@ if(!groqKey||groqKey.length<8)setTimeout(()=>showToast("Entre ta clé Groq pour 
 </script>
 </body>
 </html>
-
